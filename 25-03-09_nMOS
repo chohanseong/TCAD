@@ -1,0 +1,92 @@
+go athena
+line x loc=0.00 spac=0.10
+line x loc=0.2 spac=0.006
+line x loc=0.4 spac=0.006
+line x loc=0.5 spac=0.01
+
+line y loc=0.00 spac=0.002
+line y loc=0.2 spac=0.005
+line y loc=0.5 spac=0.05
+line y loc=0.8 spac=0.15
+
+# 기판 이름 설정
+init silicon c.boron=1.0e15 orientation=100 two.d
+# SiO2 만들기
+diffus time=250 minutes temp=1250 dryo2 
+# 
+etch oxide all 
+#
+diffus time=50 minutes temp=1000 dryo2
+# Polysilicon 증착
+deposit polysilicon thick=0.2 divisions=10 
+# 
+etch polysilicon left p1.x=0.35 
+# 
+diffus time=10 minutes temp=1000 dryo2 
+# S/D 도핑
+implant arsenic dose=5.0e14 energy=50 tilt=0 rotation=0 crystal 
+# 
+etch oxide left p1.x=0.2 
+# 
+etch oxide above p1.y=0.005 
+# S/D 용으로 Al 증착
+deposit aluminum thick=0.05 divisions=10 
+# 증착된 Al Source region을 제외하고 식각
+etch aluminum right p1.x=0.18 
+# 만든 device 구조는 반만 만들었기 때문에 미러링을 통해서 반대쪽도 만들어준다.
+struct mirror right
+
+# 전극 labeling
+electrode name=Gate x=0.50 
+electrode name=Source x=0.10 
+electrode name=Drain x=0.90 
+electrode name=Substrate backside 
+
+struct outfile=250309mosfet.str
+tonyplot 250309mosfet.str
+
+go atlas
+contact name=gate n.poly # 게이트 전극 설정
+interface qf=3e10 
+# 계면에서의 고정전하밀도 Qf 설정(Fixed charge. SiO2/Si 계면의 트랩전하밀도설정에 사용된다.
+
+model srh cvt boltzman print numcarr=2 temperature=300
+# srh → Shockley-Read-Hall (SRH) 재결합 모델 활성화
+# 포획 중심(Trap)에 의한 재결합을 고려함.
+# cvt → Carrier-Carrier Scattering 모델 (CVT Mobility Model)
+# 전하 이동도(Mobility)를 고려하는 모델 (MOSFET 시뮬레이션 시 유용).
+# boltzman → 볼츠만 통계 모델 적용
+# 전자와 정공의 분포를 Boltzmann 통계로 계산.
+# print → 모델 정보를 출력 파일에 기록.
+# numcarr=2 → 전자 & 정공 두 개의 캐리어 수송 모델 활성화.
+# temperature=300 → 시뮬레이션 온도 설정 (300K = 27°C).
+
+method	newton itlimit=25 trap atrap=0.5 maxtrap=4 autonr nrcriterion=0.1 \
+	tol.time=0.005 dt.min=1e-25
+# newton → Newton-Raphson 방법을 사용해 수식 풀이.
+# itlimit=25 → Newton 방법의 최대 반복 횟수 25회로 제한.
+# trap atrap=0.5 maxtrap=4 → 트랩(trap) 상태의 시간 적응적 조절.
+# autonr nrcriterion=0.1 → 자동 Newton-Raphson 조정, 기준 값 0.1.
+# tol.time=0.005 → 시간 변화 허용 오차(tolerance) 설정.
+# dt.min=1e-25 → 최소 시간 간격 설정 (1 × 10⁻²⁵ 초).
+
+solve init 
+solve vgate=1 outf=solve_tmp1
+solve vgate=2 outf=solve_tmp2
+solve vgate=3 outf=solve_tmp3
+
+load infile=solve_tmp1
+log outf=mos1.log
+solve name=drain vdrain=0 vfinal=3.3 vstep=0.3
+
+load infile=solve_tmp2
+log outf=mos2.log
+solve name=drain vdrain=0 vfinal=3.3 vstep=0.3
+
+load infile=solve_tmp3
+log outf=mos3.log
+solve name=drain vdrain=0 vfinal=3.3 vstep=0.3
+
+tonyplot -overlay mos1.log mos2.log mos3.log
+
+quit
